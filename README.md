@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/banner.png" alt="Pilotoken — local LLM cost proxy" width="720">
+</p>
+
 # Pilotoken — Local LLM Cost Proxy
 
 > Cut LLM API costs for developer tools and AI agents — locally, with no code change.
@@ -31,19 +35,35 @@ flowchart LR
         S --> D[Local dashboard]
     end
     P --> X[Anthropic API]
+    P --> O[OpenAI API]
     P --> V[GCP Vertex AI]
 ```
 
+Each request goes through a router that decides what can be transformed safely: user messages are protected, some tools are excluded, and large tool outputs and tool schemas are compacted. Every transform applied is logged per request.
+
 ## Results (measured in real use)
 
-| Metric | Value |
-| --- | --- |
-| Average token reduction | ~9% |
-| Best-case reduction on a request | 15.9% |
-| Cache hit rate | 89.5% |
-| Tokens saved (lifetime, own usage) | 285,900 |
+| Workload | Metric | Value |
+| --- | --- | --- |
+| Interactive coding (Claude Code) | Compression, lifetime | 3.9–6.6% |
+| Agent requests with large tool outputs | Compression, observed per request | 26.8–28.7% |
+| All traffic | Cache hit rate | 96.8% |
 
-Measured on my own Claude Code usage. Compression gains depend heavily on workload: long tool outputs, logs and repeated context benefit most.
+Measured on my own usage. Compression gains depend heavily on workload: interactive coding sessions send little to compress, while agent requests carrying long tool outputs, logs and repeated context benefit most. The agent figures come from a small sample of individual requests.
+
+### Live requests — per-request reduction and applied transforms
+
+![Live requests view: tokens before and after compression, reduction and transforms per request](docs/live-requests.png)
+
+The OpenAI agent requests carrying large tool outputs show 26.8% and 28.7% reductions (tool-schema compaction + function-call output compression). Interactive Claude Code requests pass through mostly unchanged: user messages are protected by design.
+
+### With vs. without Pilotoken (interactive coding)
+
+![Tokens sent vs. tokens saved by compression for claude-sonnet-5](docs/with-vs-without.png)
+
+### Tokens saved by compression, per model (local history)
+
+![Lifetime tokens saved by compression, by model](docs/by-model.png)
 
 ### Expected range for automated agent workloads (not yet verified)
 
@@ -54,22 +74,24 @@ Automated agent pipelines send far more tool outputs, logs and retrieved documen
 | Tool calling (BFCL) | 32% | 97% |
 | Question answering (SQuAD v2) | 19% | 97% |
 
-On that basis, a **~20–30% input-token reduction** is a reasonable expectation for agent workloads. This is **not yet measured with Pilotoken** — a benchmark on an automated agent pipeline is the next step.
+On that basis, a **~20–30% input-token reduction** is a reasonable expectation for agent workloads, consistent with the 26.8–28.7% observed on individual agent requests above. It is **not yet measured on a full automated pipeline** — a sustained benchmark is the next step.
 
-Cost savings shown in the dashboard are **estimates** based on public provider pricing, not guaranteed amounts.
+Cost figures shown in the dashboard are **estimates** based on public provider pricing, not guaranteed amounts.
 
 ## Features
 
 - Transparent interception of Claude Code CLI (including Claude Pro authentication) and Python SDK agents
-- Token compression and response caching
-- Routing to the Anthropic API or Google Cloud Vertex AI
-- Local dashboard: tokens saved, cache hits, estimated cost avoided
+- Multi-provider routing: Anthropic, OpenAI, Mistral, Google Cloud Vertex AI
+- Token compression with a per-request router (protected messages, excluded tools, tool-output and schema compaction)
+- Response caching
+- Local dashboard: overview, compression history (JSON/CSV export), live requests with applied transforms
+- Team mode: shared team key and per-developer savings
 - Windows installer (PyInstaller + installer packaging)
 - Usage-based billing integration (Stripe, Supabase)
 
 ## Stack
 
-Python · C# · TypeScript (web app and site) · Supabase · Stripe · PyInstaller
+Python (proxy) · TypeScript (dashboard and web app) · Supabase · Stripe · PyInstaller
 
 ## Scope and limitations
 
@@ -79,10 +101,6 @@ Python · C# · TypeScript (web app and site) · Supabase · Stripe · PyInstall
 ## Credits
 
 The compression engine builds on the open-source [Headroom](https://github.com/headroomlabs-ai/headroom) project (Apache 2.0).
-
-## Screenshots
-
-_Add dashboard screenshots here (tokens saved, cache hit rate, cost avoided)._
 
 ---
 
